@@ -45,17 +45,24 @@ export default function AgentDashboard() {
   const fileInputRef = useRef(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [selectedAgent, setSelectedAgent] = useState("");
+
+  // قايمة الأجنتس المتاحة
+  const agentList = useMemo(() => {
+    const names = [...new Set(data.map(r => r.agent).filter(Boolean))].sort();
+    return names;
+  }, [data]);
 
   // الداتا بعد الفلتر
   const filteredData = useMemo(() => {
-    if (!dateFrom && !dateTo) return data;
     return data.filter(r => {
       const d = r.exportDate;
       if (dateFrom && d < dateFrom) return false;
       if (dateTo && d > dateTo) return false;
+      if (selectedAgent && r.agent !== selectedAgent) return false;
       return true;
     });
-  }, [data, dateFrom, dateTo]);
+  }, [data, dateFrom, dateTo, selectedAgent]);
 
   // ====================================================
   // 📥 جيب الداتا من Google Sheets تلقائياً
@@ -277,7 +284,7 @@ export default function AgentDashboard() {
           ))}
         </div>
 
-        {/* Date Filter Bar */}
+        {/* Filter Bar */}
         {activeTab !== "data" && (
           <div style={{
             background:"#fff",border:"1px solid #e0e0e0",borderRadius:2,
@@ -285,7 +292,8 @@ export default function AgentDashboard() {
             display:"flex",alignItems:"center",gap:16,flexWrap:"wrap",
             boxShadow:"0 1px 4px rgba(0,0,0,0.05)"
           }}>
-            <div style={{fontSize:10,color:"#aaa",letterSpacing:2,textTransform:"uppercase",fontFamily:"'DM Mono',monospace"}}>📅 فلتر التاريخ</div>
+            {/* فلتر التاريخ */}
+            <div style={{fontSize:10,color:"#aaa",letterSpacing:2,textTransform:"uppercase",fontFamily:"'DM Mono',monospace"}}>📅 التاريخ</div>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <label style={{fontSize:11,color:"#888",fontFamily:"'DM Mono',monospace"}}>من</label>
               <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}
@@ -298,16 +306,33 @@ export default function AgentDashboard() {
                 style={{background:"#f9f9f9",border:"1px solid #ddd",color:"#111",padding:"7px 12px",
                   fontFamily:"'DM Mono',monospace",fontSize:12,outline:"none",borderRadius:1,cursor:"pointer"}}/>
             </div>
-            {(dateFrom || dateTo) && (
-              <button onClick={()=>{setDateFrom("");setDateTo("");}}
+
+            {/* فاصل */}
+            <div style={{width:1,height:28,background:"#e0e0e0"}}/>
+
+            {/* فلتر الأجنت */}
+            <div style={{fontSize:10,color:"#aaa",letterSpacing:2,textTransform:"uppercase",fontFamily:"'DM Mono',monospace"}}>👤 الأجنت</div>
+            <select value={selectedAgent} onChange={e=>setSelectedAgent(e.target.value)}
+              style={{background:"#f9f9f9",border:"1px solid #ddd",color:selectedAgent?"#111":"#aaa",
+                padding:"7px 12px",fontFamily:"'DM Mono',monospace",fontSize:12,outline:"none",
+                borderRadius:1,cursor:"pointer",minWidth:160}}>
+              <option value="">الكل</option>
+              {agentList.map(a=><option key={a} value={a}>{a}</option>)}
+            </select>
+
+            {/* زرار إلغاء كل الفلاتر */}
+            {(dateFrom || dateTo || selectedAgent) && (
+              <button onClick={()=>{setDateFrom("");setDateTo("");setSelectedAgent("");}}
                 style={{background:"transparent",color:"#c62828",fontFamily:"'DM Mono',monospace",
                   fontSize:11,letterSpacing:1,padding:"6px 12px",border:"1px solid #c6282833",cursor:"pointer",borderRadius:1}}>
-                ✕ إلغاء الفلتر
+                ✕ إلغاء الكل
               </button>
             )}
+
+            {/* عداد السجلات */}
             <div style={{marginLeft:"auto",fontSize:11,letterSpacing:1,fontFamily:"'DM Mono',monospace",
-              color:(dateFrom||dateTo)?"#0077aa":"#bbb"}}>
-              {(dateFrom||dateTo)
+              color:(dateFrom||dateTo||selectedAgent)?"#0077aa":"#bbb"}}>
+              {(dateFrom||dateTo||selectedAgent)
                 ? <span><b style={{color:"#0077aa"}}>{filteredData.length}</b> سجل من أصل {data.length}</span>
                 : <span>{data.length} سجل إجمالي</span>
               }
