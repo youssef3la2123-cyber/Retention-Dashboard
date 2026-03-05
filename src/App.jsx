@@ -70,10 +70,13 @@ export default function AgentDashboard() {
   const parseDate = (val) => {
     if (!val) return "";
     const s = String(val).trim();
-    // فورمات ISO من Google Sheets: 2026-01-01T22:00:00.000Z
+    // فورمات ISO من Google Sheets: 2026-02-01T22:00:00.000Z
     if (s.includes("T")) {
-      // بناخد التاريخ من الشيت مباشرة بدون تحويل UTC
-      return s.slice(0, 10); // 2026-01-01
+      const d = new Date(s);
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
     }
     // فورمات M/D/YYYY — شهر/يوم/سنة
     const slashMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
