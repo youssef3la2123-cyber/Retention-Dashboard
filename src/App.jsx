@@ -6,7 +6,7 @@ import * as XLSX from "xlsx";
 // ====================================================
 // 🔗 رابط Google Apps Script — بيجيب الداتا من الشيت
 // ====================================================
-const SHEET_URL = "https://script.google.com/macros/s/AKfycbzsBGzn1wGqrBtGRc5WSZnaXvPIzcq3q8YyOW37N2voeep8z1hZ5yhRgATxMzWlhg5X/exec";
+const SHEET_URL = "https://script.google.com/macros/s/AKfycbxNx5Ljzw9C4dufwEzDhgDgXjmPnYMhUPpiZxysswZ6sFzF-ywBQxTyXEYuKs2m8_n-/exec";
 
 const REASON_A = "Re-delivery without shipping fees";
 const REASON_B = "Need courier";
@@ -70,21 +70,22 @@ export default function AgentDashboard() {
   const parseDate = (val) => {
     if (!val) return "";
     const s = String(val).trim();
-    // فورمات ISO من Google Sheets: 2026-02-01T22:00:00.000Z
+    // فورمات ISO من Google Sheets: 2026-01-31T22:00:00.000Z
+    // بنضيف offset التوقيت المحلي عشان نحصل على التاريخ الصح
     if (s.includes("T")) {
       const d = new Date(s);
-      const y = d.getUTCFullYear();
-      const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-      const day = String(d.getUTCDate()).padStart(2, "0");
+      const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+      const y = local.getUTCFullYear();
+      const m = String(local.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(local.getUTCDate()).padStart(2, "0");
       return `${y}-${m}-${day}`;
     }
-    // فورمات M/D/YYYY — شهر/يوم/سنة
+    // فورمات M/D/YYYY
     const slashMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (slashMatch) {
       const [_, m, d, y] = slashMatch;
       return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
     }
-    // فورمات YYYY-MM-DD
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
     return s;
   };
