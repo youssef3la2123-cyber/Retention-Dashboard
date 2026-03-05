@@ -185,7 +185,7 @@ export default function AgentDashboard() {
     setLoadingSheet(false);
   };
 
-  useEffect(() => { fetchFromSheet(); }, []);
+  useEffect(() => { if (userName) fetchFromSheet(); }, [userName]);
 
   // ====================================================
   // 📊 حسابات الإحصائيات
