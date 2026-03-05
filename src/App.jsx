@@ -46,75 +46,6 @@ export default function AgentDashboard() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [selectedAgent, setSelectedAgent] = useState("");
-  const [userName, setUserName] = useState("");
-  const [nameInput, setNameInput] = useState("");
-  const [nameError, setNameError] = useState("");
-
-  const handleNameSubmit = () => {
-    const val = nameInput.trim();
-    if (!val) { setNameError("من فضلك اكتب اسمك"); return; }
-    // بنقبل بس حروف عربي أو انجليزي ومسافات
-    if (!/^[\u0600-\u06FFa-zA-Z\s]+$/.test(val)) {
-      setNameError("الاسم بالحروف فقط — بدون أرقام أو رموز");
-      return;
-    }
-    setUserName(val);
-  };
-
-  // شاشة إدخال الاسم
-  if (!userName) {
-    return (
-      <>
-        <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@700;800&display=swap');
-          *{box-sizing:border-box;margin:0;padding:0;}
-          body{background:#f4f4f4;}
-        `}</style>
-        <div style={{
-          minHeight:"100vh",background:"#f4f4f4",display:"flex",alignItems:"center",justifyContent:"center",
-          fontFamily:"'DM Mono',monospace"
-        }}>
-          <motion.div initial={{opacity:0,y:24}} animate={{opacity:1,y:0}} transition={{duration:0.5}}
-            style={{background:"#fff",border:"1px solid #e0e0e0",padding:"48px 40px",width:420,
-              maxWidth:"95vw",boxShadow:"0 4px 24px rgba(0,0,0,0.08)",borderRadius:2,textAlign:"center"}}>
-            <div style={{fontFamily:"'Syne',sans-serif",fontSize:28,color:"#111",marginBottom:8}}>
-              RETENTION TEAM <span style={{color:"#0077aa"}}>PERFORMANCE</span>
-            </div>
-            <div style={{fontSize:11,color:"#aaa",letterSpacing:2,textTransform:"uppercase",marginBottom:36}}>
-              // أهلاً بيك
-            </div>
-            <div style={{fontSize:12,color:"#888",marginBottom:16,letterSpacing:1}}>
-              اكتب اسمك عشان تكمل
-            </div>
-            <input
-              type="text"
-              placeholder="اسمك هنا..."
-              value={nameInput}
-              onChange={e => { setNameInput(e.target.value); setNameError(""); }}
-              onKeyDown={e => e.key === "Enter" && handleNameSubmit()}
-              style={{
-                width:"100%",background:"#f9f9f9",border:`1px solid ${nameError?"#c62828":"#ddd"}`,
-                color:"#111",padding:"12px 16px",fontFamily:"'DM Mono',monospace",fontSize:14,
-                outline:"none",borderRadius:1,marginBottom:8,textAlign:"center",direction:"auto"
-              }}
-              autoFocus
-            />
-            {nameError && (
-              <div style={{fontSize:11,color:"#c62828",marginBottom:12,letterSpacing:1}}>{nameError}</div>
-            )}
-            <button onClick={handleNameSubmit}
-              style={{
-                width:"100%",background:"#0077aa",color:"#fff",fontFamily:"'DM Mono',monospace",
-                fontSize:12,letterSpacing:2,textTransform:"uppercase",padding:"13px",
-                border:"none",cursor:"pointer",marginTop:8,borderRadius:1,fontWeight:500
-              }}>
-              دخول ←
-            </button>
-          </motion.div>
-        </div>
-      </>
-    );
-  }
 
   // قايمة الأجنتس المتاحة
   const agentList = useMemo(() => {
@@ -185,7 +116,7 @@ export default function AgentDashboard() {
     setLoadingSheet(false);
   };
 
-  useEffect(() => { if (userName) fetchFromSheet(); }, [userName]);
+  useEffect(() => { fetchFromSheet(); }, []);
 
   // ====================================================
   // 📊 حسابات الإحصائيات
@@ -329,7 +260,7 @@ export default function AgentDashboard() {
         <motion.div className="header" initial={{opacity:0,y:-16}} animate={{opacity:1,y:0}} transition={{duration:0.5}}>
           <div>
             <div className="title">RETENTION TEAM <span>PERFORMANCE</span></div>
-            <div className="subtitle">// أهلاً بيك يا <span style={{color:"#0077aa"}}>{userName}</span></div>
+            <div className="subtitle">// Orders · Performance · Feedback</div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
             {sheetMsg && (
@@ -342,7 +273,7 @@ export default function AgentDashboard() {
             )}
             <button className="btn-ghost" onClick={fetchFromSheet} disabled={loadingSheet}
               style={{padding:"6px 16px",fontSize:11,opacity:loadingSheet?0.5:1}}>
-              {loadingSheet ? `جاري التحديث يا ${userName}...` : "↻ تحديث من الشيت"}
+              {loadingSheet ? "جاري التحميل..." : "↻ تحديث من الشيت"}
             </button>
             <div className="badge">{data.length} RECORDS</div>
           </div>
