@@ -70,19 +70,21 @@ export default function AgentDashboard() {
   const parseDate = (val) => {
     if (!val) return "";
     const s = String(val).trim();
+    // فورمات ISO من Google Sheets: 2026-01-31T22:00:00.000Z
     if (s.includes("T")) {
-      // نضيف ساعتين لتوقيت القاهرة UTC+2
       const d = new Date(new Date(s).getTime() + 2 * 60 * 60 * 1000);
       const y = d.getUTCFullYear();
       const m = String(d.getUTCMonth() + 1).padStart(2, "0");
       const day = String(d.getUTCDate()).padStart(2, "0");
       return `${y}-${m}-${day}`;
     }
+    // فورمات M/D/YYYY أو M/DD/YYYY أو MM/DD/YYYY — شهر/يوم/سنة
     const slashMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (slashMatch) {
       const [_, m, d, y] = slashMatch;
       return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
     }
+    // فورمات YYYY-MM-DD
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
     return s;
   };
@@ -120,13 +122,16 @@ export default function AgentDashboard() {
 
   // الأسباب اللي بتتشال من حساب الـ Reachability
   const EXCLUDED_REASONS = [
-    "Not reached removed from bundle",
-    "Already Out By User",
-    "2nd return",
-    "Not reached removed (paid deposit)",
-    "Not reached (with payment)",
     "Already Signed",
+    "Already Out By User",
+    "Not reached removed from bundle",
+    "Not reached (with payment)",
     "Suspicious fraud",
+    "Not reached removed (paid deposit)",
+    "Positive AML",
+    "Contract order was created by mistake",
+    "2nd return",
+    "Waiting for approval by Hub",
   ];
 
   // ====================================================
