@@ -118,17 +118,32 @@ export default function AgentDashboard() {
 
   useEffect(() => { fetchFromSheet(); }, []);
 
+  // الأسباب اللي بتتشال من حساب الـ Reachability
+  const EXCLUDED_REASONS = [
+    "Not reached removed from bundle",
+    "Already Out By User",
+    "2nd return",
+    "Not reached removed (paid deposit)",
+    "Not reached (with payment)",
+    "Already Signed",
+    "Suspicious fraud",
+  ];
+
   // ====================================================
   // 📊 حسابات الإحصائيات
   // ====================================================
   const agentStats = useMemo(() => {
     const map = {};
     filteredData.forEach(r => {
-      if (!map[r.agent]) map[r.agent] = {name:r.agent, total:0, feedbacks:{}};
+      if (!map[r.agent]) map[r.agent] = {name:r.agent, total:0, feedbacks:{}, reachable:0};
       map[r.agent].total++;
       map[r.agent].feedbacks[r.feedback] = (map[r.agent].feedbacks[r.feedback]||0)+1;
+      if (!EXCLUDED_REASONS.includes(r.feedback)) map[r.agent].reachable++;
     });
-    return Object.values(map).sort((a,b)=>b.total-a.total);
+    return Object.values(map).sort((a,b)=>b.total-a.total).map(a => ({
+      ...a,
+      reachability: a.total > 0 ? ((a.reachable / a.total) * 100).toFixed(1) : "0.0"
+    }));
   }, [filteredData]);
 
   const feedbackStats = useMemo(() => {
@@ -426,19 +441,53 @@ export default function AgentDashboard() {
                 </div>
               </div>
               <div className="card" style={{marginTop:"2px"}}>
+                <div className="card-title">📊 Reachability — ملخص</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:2}}>
+                  {agentStats.map((a,i)=>{
+                    const reach = parseFloat(a.reachability);
+                    const reachColor = reach >= 70 ? "#2e7d32" : reach >= 50 ? "#e06000" : "#c62828";
+                    return(
+                      <div key={i} style={{flex:"1 1 160px",background:"#f9f9f9",border:"1px solid #e8e8e8",
+                        padding:"16px",borderRadius:2,borderTop:`3px solid ${reachColor}`}}>
+                        <div style={{fontSize:10,color:"#aaa",letterSpacing:2,marginBottom:8}}>{a.name}</div>
+                        <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,color:reachColor}}>{a.reachability}%</div>
+                        <div style={{fontSize:10,color:"#bbb",marginTop:4}}>{a.reachable} من {a.total} أوردر</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="card" style={{marginTop:"2px"}}>
                 <div className="card-title">Agent Feedback Breakdown</div>
                 <table className="table">
-                  <thead><tr><th>Agent</th><th>Total</th><th>% من الإجمالي</th><th>Top Feedback</th><th>% من أوردراته</th></tr></thead>
+                  <thead><tr>
+                    <th>Agent</th>
+                    <th>Total</th>
+                    <th>% من الإجمالي</th>
+                    <th>Top Feedback</th>
+                    <th>% من أوردراته</th>
+                    <th style={{color:"#2e7d32"}}>Reachability</th>
+                  </tr></thead>
                   <tbody>
                     {agentStats.map((a,i)=>{
                       const top=Object.entries(a.feedbacks).sort((x,y)=>y[1]-x[1])[0];
+                      const reach = parseFloat(a.reachability);
+                      const reachColor = reach >= 70 ? "#2e7d32" : reach >= 50 ? "#e06000" : "#c62828";
                       return(
                         <tr key={i}>
                           <td style={{color:COLORS[i%COLORS.length]}}>{a.name}</td>
                           <td>{a.total}</td>
-                          <td style={{color:"#0077aa"}}>{data.length>0?((a.total/data.length)*100).toFixed(1)+"%":"0%"}</td>
+                          <td style={{color:"#0077aa"}}>{filteredData.length>0?((a.total/filteredData.length)*100).toFixed(1)+"%":"0%"}</td>
                           <td>{top?.[0]||"-"}</td>
                           <td style={{color:"#2e7d32"}}>{top&&a.total>0?((top[1]/a.total)*100).toFixed(1)+"%":"-"}</td>
+                          <td>
+                            <div style={{display:"flex",alignItems:"center",gap:8}}>
+                              <div style={{flex:1,background:"#f0f0f0",height:6,borderRadius:1,overflow:"hidden",minWidth:60}}>
+                                <div style={{width:`${a.reachability}%`,height:"100%",background:reachColor,borderRadius:1,transition:"width 0.8s ease"}}/>
+                              </div>
+                              <span style={{color:reachColor,fontWeight:600,minWidth:42}}>{a.reachability}%</span>
+                            </div>
+                          </td>
                         </tr>
                       );
                     })}
