@@ -166,20 +166,10 @@ export default function AgentDashboard() {
   }, [filteredData]);
 
   const timelineData = useMemo(() => {
-    if (viewMode==="day") {
-      const map = {};
-      data.forEach(r => { map[r.exportDate]=(map[r.exportDate]||0)+1; });
-      return Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0])).map(([date,count])=>({label:date.slice(5)||date, count}));
-    } else {
-      const map = {};
-      data.forEach(r => {
-        const d = new Date(r.exportDate);
-        const week = `W${Math.ceil(d.getDate()/7)}-${d.getMonth()+1}`;
-        map[week]=(map[week]||0)+1;
-      });
-      return Object.entries(map).map(([label,count])=>({label,count}));
-    }
-  }, [data, viewMode]);
+    const map = {};
+    filteredData.forEach(r => { if (r.exportDate) map[r.exportDate]=(map[r.exportDate]||0)+1; });
+    return Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0])).map(([date,count])=>({label:date.slice(5), count}));
+  }, [filteredData]);
 
   const handleAdd = () => {
     if (!form.exportDate||!form.orderCode||!form.agent||!form.feedback) return;
@@ -391,10 +381,6 @@ export default function AgentDashboard() {
               <div className="card" style={{marginBottom:"2px"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
                   <div className="card-title" style={{margin:0}}>Orders Timeline</div>
-                  <div className="toggle-wrap" style={{margin:0}}>
-                    <button className={`toggle-btn ${viewMode==="day"?"on":"off"}`} onClick={()=>setViewMode("day")}>Daily</button>
-                    <button className={`toggle-btn ${viewMode==="week"?"on":"off"}`} onClick={()=>setViewMode("week")}>Weekly</button>
-                  </div>
                 </div>
                 <ResponsiveContainer width="100%" height={240}>
                   <LineChart data={timelineData}>
@@ -453,42 +439,6 @@ export default function AgentDashboard() {
                   })}
                 </div>
               </div>
-              <div className="card" style={{marginTop:"2px"}}>
-                <div className="card-title">Agent Feedback Breakdown</div>
-                <table className="table">
-                  <thead><tr>
-                    <th>Agent</th>
-                    <th>Total</th>
-                    <th>% من الإجمالي</th>
-                    <th>Top Feedback</th>
-                    <th>% من أوردراته</th>
-                    <th style={{color:"#2e7d32"}}>Reachability</th>
-                  </tr></thead>
-                  <tbody>
-                    {agentStats.map((a,i)=>{
-                      const top=Object.entries(a.feedbacks).sort((x,y)=>y[1]-x[1])[0];
-                      const reach = parseFloat(a.reachability);
-                      const reachColor = reach >= 70 ? "#2e7d32" : reach >= 50 ? "#e06000" : "#c62828";
-                      return(
-                        <tr key={i}>
-                          <td style={{color:COLORS[i%COLORS.length]}}>{a.name}</td>
-                          <td>{a.total}</td>
-                          <td style={{color:"#0077aa"}}>{filteredData.length>0?((a.total/filteredData.length)*100).toFixed(1)+"%":"0%"}</td>
-                          <td>{top?.[0]||"-"}</td>
-                          <td style={{color:"#2e7d32"}}>{top&&a.total>0?((top[1]/a.total)*100).toFixed(1)+"%":"-"}</td>
-                          <td>
-                            <div style={{display:"flex",alignItems:"center",gap:8}}>
-                              <div style={{flex:1,background:"#f0f0f0",height:6,borderRadius:1,overflow:"hidden",minWidth:60}}>
-                                <div style={{width:`${a.reachability}%`,height:"100%",background:reachColor,borderRadius:1,transition:"width 0.8s ease"}}/>
-                              </div>
-                              <span style={{color:reachColor,fontWeight:600,minWidth:42}}>{a.reachability}%</span>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
               </div>
             </motion.div>
           )}
