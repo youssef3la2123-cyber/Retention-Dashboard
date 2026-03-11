@@ -120,7 +120,7 @@ export default function AgentDashboard() {
 
   useEffect(() => { fetchFromSheet(); }, []);
 
-  // الأسباب اللي بتتشال من حساب الـ Reachability
+  // الأسباب اللي بتتشال من حساب الـ Reachability (البسط)
   const EXCLUDED_REASONS = [
     "Already Signed",
     "Already Out By User",
@@ -134,20 +134,28 @@ export default function AgentDashboard() {
     "Waiting for approval by Hub",
   ];
 
+  // الأسباب اللي بتتشال من إجمالي الأوردرات (المقام)
+  const EXCLUDED_FROM_TOTAL = [
+    "2nd return",
+    "Already Signed",
+    "Suspicious fraud",
+  ];
+
   // ====================================================
   // 📊 حسابات الإحصائيات
   // ====================================================
   const agentStats = useMemo(() => {
     const map = {};
     filteredData.forEach(r => {
-      if (!map[r.agent]) map[r.agent] = {name:r.agent, total:0, feedbacks:{}, reachable:0};
+      if (!map[r.agent]) map[r.agent] = {name:r.agent, total:0, feedbacks:{}, reachable:0, effectiveTotal:0};
       map[r.agent].total++;
       map[r.agent].feedbacks[r.feedback] = (map[r.agent].feedbacks[r.feedback]||0)+1;
+      if (!EXCLUDED_FROM_TOTAL.includes(r.feedback)) map[r.agent].effectiveTotal++;
       if (!EXCLUDED_REASONS.includes(r.feedback)) map[r.agent].reachable++;
     });
     return Object.values(map).sort((a,b)=>b.total-a.total).map(a => ({
       ...a,
-      reachability: a.total > 0 ? ((a.reachable / a.total) * 100).toFixed(1) : "0.0"
+      reachability: a.effectiveTotal > 0 ? ((a.reachable / a.effectiveTotal) * 100).toFixed(1) : "0.0"
     }));
   }, [filteredData]);
 
@@ -415,23 +423,7 @@ export default function AgentDashboard() {
 
           {activeTab==="agents" && (
             <motion.div key="agents" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} exit={{opacity:0}} transition={{duration:0.3}}>
-              <div className="grid2">
-                <div className="card">
-                  <div className="card-title">Agent Performance</div>
-                  {agentStats.length===0&&<div className="empty">No data yet</div>}
-                  {agentStats.map((a,i)=>(
-                    <div key={i} className="agent-row">
-                      <div className="agent-name">{a.name}</div>
-                      <div className="agent-bar-wrap">
-                        <motion.div className="agent-bar" style={{background:COLORS[i%COLORS.length]}}
-                          initial={{width:0}} animate={{width:`${(a.total/agentStats[0].total)*100}%`}}
-                          transition={{delay:i*0.1,duration:0.8,ease:"easeOut"}}/>
-                      </div>
-                      <div className="agent-count">{data.length>0?((a.total/data.length)*100).toFixed(1)+"%":"0%"}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="card">
+              <div className="card" style={{marginBottom:"2px"}}>
                   <div className="card-title">Orders by Agent</div>
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={agentStats} barCategoryGap="35%">
@@ -444,7 +436,6 @@ export default function AgentDashboard() {
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-              </div>
               <div className="card" style={{marginTop:"2px"}}>
                 <div className="card-title">📊 Reachability — ملخص</div>
                 <div style={{display:"flex",flexWrap:"wrap",gap:2}}>
@@ -456,7 +447,7 @@ export default function AgentDashboard() {
                         padding:"16px",borderRadius:2,borderTop:`3px solid ${reachColor}`}}>
                         <div style={{fontSize:10,color:"#aaa",letterSpacing:2,marginBottom:8}}>{a.name}</div>
                         <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,color:reachColor}}>{a.reachability}%</div>
-                        <div style={{fontSize:10,color:"#bbb",marginTop:4}}>{a.reachable} من {a.total} أوردر</div>
+                        <div style={{fontSize:10,color:"#bbb",marginTop:4}}>{a.reachable} من {a.effectiveTotal} أوردر فعلي</div>
                       </div>
                     );
                   })}
