@@ -439,7 +439,6 @@ export default function AgentDashboard() {
                   })}
                 </div>
               </div>
-              </div>
             </motion.div>
           )}
 
