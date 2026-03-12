@@ -78,10 +78,16 @@ export default function AgentDashboard() {
       const day = String(d.getUTCDate()).padStart(2, "0");
       return `${y}-${m}-${day}`;
     }
-    // فورمات M/D/YYYY أو M/DD/YYYY أو MM/DD/YYYY — شهر/يوم/سنة
-    const slashMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (slashMatch) {
-      const [_, m, d, y] = slashMatch;
+    // فورمات YYYY/MM/DD (زي 2026/03/02)
+    const slashYMD = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+    if (slashYMD) {
+      const [_, y, m, d] = slashYMD;
+      return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
+    }
+    // فورمات M/D/YYYY (زي 2/26/2026)
+    const slashMDY = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (slashMDY) {
+      const [_, m, d, y] = slashMDY;
       return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
     }
     // فورمات YYYY-MM-DD
