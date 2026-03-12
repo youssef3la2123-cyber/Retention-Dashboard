@@ -6,7 +6,7 @@ import * as XLSX from "xlsx";
 // ====================================================
 // 🔗 رابط Google Apps Script — بيجيب الداتا من الشيت
 // ====================================================
-const SHEET_URL = "https://script.google.com/macros/s/AKfycbyJpu-dqach2JiGkIrKvnwZQLJxL1DCZvOPynuLI7Vfd7bJxAtWX-NTLEc8ehY2Tjzx/exec";
+const SHEET_URL = "https://script.google.com/macros/s/AKfycbyLuo3U6bTV5TVuw3iJMGymu0H_lzyClMxOTR9z1aZcGH8rQU6BGbk0f2en9nueeboZ/exec";
 
 const REASON_A = "Re-delivery without shipping fees";
 const REASON_B = "Need courier";
