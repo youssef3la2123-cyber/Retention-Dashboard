@@ -6,7 +6,7 @@ import * as XLSX from "xlsx";
 // ====================================================
 // 🔗 رابط Google Apps Script — بيجيب الداتا من الشيت
 // ====================================================
-const SHEET_URL = "https://script.google.com/macros/s/AKfycbyLuo3U6bTV5TVuw3iJMGymu0H_lzyClMxOTR9z1aZcGH8rQU6BGbk0f2en9nueeboZ/exec";
+const SHEET_URL = "https://script.google.com/macros/s/AKfycbzCVbqIeVsqa7BEeeXaTkOJfjjgYgcChDUHgki4wFmHw0eX2DPfoHAXWR11Cn8SEGYy/exec";
 
 const REASON_A = "Re-delivery without shipping fees";
 const REASON_B = "Need courier";
@@ -46,6 +46,7 @@ export default function AgentDashboard() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [selectedAgent, setSelectedAgent] = useState("");
+  const [shippedData, setShippedData] = useState([]);
 
   // قايمة الأجنتس المتاحة
   const agentList = useMemo(() => {
@@ -78,17 +79,17 @@ export default function AgentDashboard() {
       const day = String(d.getUTCDate()).padStart(2, "0");
       return `${y}-${m}-${day}`;
     }
-    // فورمات YYYY/MM/DD (زي 2026/03/02)
-    const slashYMD = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
-    if (slashYMD) {
-      const [_, y, m, d] = slashYMD;
-      return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
+    // فورمات MM/DD/YYYY أو M/D/YYYY — شهر/يوم/سنة (الفورمات الأمريكي)
+    const mdyMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (mdyMatch) {
+      const [_, month, day, year] = mdyMatch;
+      return `${year}-${month.padStart(2,"0")}-${day.padStart(2,"0")}`;
     }
-    // فورمات M/D/YYYY (زي 2/26/2026)
-    const slashMDY = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (slashMDY) {
-      const [_, m, d, y] = slashMDY;
-      return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
+    // فورمات YYYY/MM/DD
+    const ymdMatch = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+    if (ymdMatch) {
+      const [_, year, month, day] = ymdMatch;
+      return `${year}-${month.padStart(2,"0")}-${day.padStart(2,"0")}`;
     }
     // فورمات YYYY-MM-DD
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
@@ -100,14 +101,21 @@ export default function AgentDashboard() {
     setSheetMsg(null);
     try {
       const res = await fetch(SHEET_URL);
-      const rows = await res.json();
-      if (!rows || rows.length === 0) {
+      const json = await res.json();
+
+      // بيجيب الورقتين مع بعض
+      const rows1 = json.sheet1 || json;
+      const rows2 = json.sheet2 || [];
+
+      if (!rows1 || rows1.length === 0) {
         setSheetMsg({type:"error", text:"الشيت فاضي أو مفيش بيانات!"});
         setLoadingSheet(false);
         return;
       }
+
+      // ورقة 1 — الداتا الأساسية
       let idCounter = 1;
-      const parsed = rows.map(row => ({
+      const parsed = rows1.map(row => ({
         id: idCounter++,
         exportDate: parseDate(row["Export date"] || row["Export Date"] || ""),
         orderCode: String(row["Order Code"] || "").trim(),
@@ -116,6 +124,15 @@ export default function AgentDashboard() {
       })).filter(r => r.orderCode || r.agent);
       setData(parsed);
       setNextId(parsed.length + 1);
+
+      // ورقة 2 — الأوردرات المشحونة
+      const shipped = rows2.map(row => ({
+        orderCode: String(row["Order Code"] || "").trim(),
+        agent: String(row["Agent Name"] || "").trim(),
+        finalFeedback: String(row["Final feedback"] || row["Final Feedback"] || "").trim(),
+      })).filter(r => r.orderCode);
+      setShippedData(shipped);
+
       setSheetMsg({type:"success", text:`✓ تم تحميل ${parsed.length} سجل من الشيت!`});
       setTimeout(() => setSheetMsg(null), 4000);
     } catch(err) {
@@ -147,23 +164,39 @@ export default function AgentDashboard() {
     "Suspicious fraud",
   ];
 
+  // الأسباب اللي بتحسب في مقام Delivery Rate
+  const COURIER_REASONS = ["Need courier", "Re-delivery without shipping fees"];
+  // الأسباب اللي بتحسب في البسط (وصل فعلاً)
+  const DELIVERED_REASONS = ["Delivered", "Delivered & Received", "Archived"];
+
   // ====================================================
   // 📊 حسابات الإحصائيات
   // ====================================================
   const agentStats = useMemo(() => {
     const map = {};
     filteredData.forEach(r => {
-      if (!map[r.agent]) map[r.agent] = {name:r.agent, total:0, feedbacks:{}, reachable:0, effectiveTotal:0};
+      if (!map[r.agent]) map[r.agent] = {name:r.agent, total:0, feedbacks:{}, reachable:0, effectiveTotal:0, courierTotal:0};
       map[r.agent].total++;
       map[r.agent].feedbacks[r.feedback] = (map[r.agent].feedbacks[r.feedback]||0)+1;
       if (!EXCLUDED_FROM_TOTAL.includes(r.feedback)) map[r.agent].effectiveTotal++;
       if (!EXCLUDED_REASONS.includes(r.feedback)) map[r.agent].reachable++;
+      if (COURIER_REASONS.includes(r.feedback)) map[r.agent].courierTotal++;
     });
+
+    // حساب Delivery Rate من ورقة 2
+    const shippedMap = {};
+    shippedData.forEach(r => {
+      if (!shippedMap[r.agent]) shippedMap[r.agent] = 0;
+      if (DELIVERED_REASONS.includes(r.finalFeedback)) shippedMap[r.agent]++;
+    });
+
     return Object.values(map).sort((a,b)=>b.total-a.total).map(a => ({
       ...a,
-      reachability: a.effectiveTotal > 0 ? ((a.reachable / a.effectiveTotal) * 100).toFixed(1) : "0.0"
+      reachability: a.effectiveTotal > 0 ? ((a.reachable / a.effectiveTotal) * 100).toFixed(1) : "0.0",
+      deliveredCount: shippedMap[a.name] || 0,
+      deliveryRate: a.courierTotal > 0 ? (((shippedMap[a.name] || 0) / a.courierTotal) * 100).toFixed(1) : "0.0"
     }));
-  }, [filteredData]);
+  }, [filteredData, shippedData]);
 
   const feedbackStats = useMemo(() => {
     const map = {};
@@ -397,19 +430,6 @@ export default function AgentDashboard() {
                     <Line type="monotone" dataKey="count" stroke="#0077aa" strokeWidth={2} dot={{fill:"#0077aa",r:4}} name="Orders"/>
                   </LineChart>
                 </ResponsiveContainer>
-              </div>
-              <div className="card">
-                <div className="card-title">Top Feedback Reasons</div>
-                <div style={{display:"flex",flexWrap:"wrap"}}>
-                  {feedbackStats.slice(0,6).map((f,i)=>(
-                    <div key={i} className="fb-chip">
-                      <span style={{color:COLORS[i%COLORS.length],fontSize:8}}>●</span>
-                      {f.name}
-                      <span className="fb-count">{data.length>0?((f.value/data.length)*100).toFixed(1)+"%":"0%"}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </motion.div>
           )}
 
@@ -440,6 +460,23 @@ export default function AgentDashboard() {
                         <div style={{fontSize:10,color:"#aaa",letterSpacing:2,marginBottom:8}}>{a.name}</div>
                         <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,color:reachColor}}>{a.reachability}%</div>
                         <div style={{fontSize:10,color:"#bbb",marginTop:4}}>{a.reachable} من {a.effectiveTotal} أوردر فعلي</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="card" style={{marginTop:"2px"}}>
+                <div className="card-title">🚚 Delivery Rate — ملخص</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:2}}>
+                  {agentStats.map((a,i)=>{
+                    const rate = parseFloat(a.deliveryRate);
+                    const rateColor = rate >= 70 ? "#2e7d32" : rate >= 50 ? "#e06000" : "#c62828";
+                    return(
+                      <div key={i} style={{flex:"1 1 160px",background:"#f9f9f9",border:"1px solid #e8e8e8",
+                        padding:"16px",borderRadius:2,borderTop:`3px solid ${rateColor}`}}>
+                        <div style={{fontSize:10,color:"#aaa",letterSpacing:2,marginBottom:8}}>{a.name}</div>
+                        <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,color:rateColor}}>{a.deliveryRate}%</div>
+                        <div style={{fontSize:10,color:"#bbb",marginTop:4}}>{a.deliveredCount} وصل من {a.courierTotal} مشحون</div>
                       </div>
                     );
                   })}
@@ -575,20 +612,6 @@ export default function AgentDashboard() {
                         </tbody>
                       </table>
                     </div>
-                  </div>
-                  <div className="card">
-                    <div className="card-title">Bar Chart مقارنة</div>
-                    <ResponsiveContainer width="100%" height={280}>
-                      <BarChart data={agentCompare} barCategoryGap="25%">
-                        <XAxis dataKey="name" tick={{fill:"#aaa",fontSize:10,fontFamily:"DM Mono"}} axisLine={false} tickLine={false}/>
-                        <YAxis tick={{fill:"#bbb",fontSize:10,fontFamily:"DM Mono"}} axisLine={false} tickLine={false}/>
-                        <Tooltip content={<CustomTooltip/>} cursor={{fill:"#00000004"}}/>
-                        <Legend wrapperStyle={{fontSize:10,fontFamily:"DM Mono",color:"#888"}}/>
-                        <Bar dataKey="countA" name="Re-delivery" fill="#0077aa" radius={[2,2,0,0]}/>
-                        <Bar dataKey="countB" name="Need Courier" fill="#e06000" radius={[2,2,0,0]}/>
-                        <Bar dataKey="combined" name="المجموع" fill="#2e7d32" radius={[2,2,0,0]}/>
-                      </BarChart>
-                    </ResponsiveContainer>
                   </div>
                 </>);
               })()}
