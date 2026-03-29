@@ -3,9 +3,6 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import { motion, AnimatePresence } from "framer-motion";
 import * as XLSX from "xlsx";
 
-// ====================================================
-// 🔗 رابط Google Apps Script — بيجيب الداتا من الشيت
-// ====================================================
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbzCVbqIeVsqa7BEeeXaTkOJfjjgYgcChDUHgki4wFmHw0eX2DPfoHAXWR11Cn8SEGYy/exec";
 
 const REASON_A = "Re-delivery without shipping fees";
@@ -33,10 +30,10 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export default function AgentDashboard() {
   const [data, setData] = useState([]);
+  const [shippedData, setShippedData] = useState([]);
   const [loadingSheet, setLoadingSheet] = useState(false);
   const [sheetMsg, setSheetMsg] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [viewMode, setViewMode] = useState("day");
   const [activeTab, setActiveTab] = useState("overview");
   const [form, setForm] = useState({exportDate:"",orderCode:"",agent:"",feedback:""});
   const [deleteId, setDeleteId] = useState(null);
@@ -46,15 +43,11 @@ export default function AgentDashboard() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [selectedAgent, setSelectedAgent] = useState("");
-  const [shippedData, setShippedData] = useState([]);
 
-  // قايمة الأجنتس المتاحة
   const agentList = useMemo(() => {
-    const names = [...new Set(data.map(r => r.agent).filter(Boolean))].sort();
-    return names;
+    return [...new Set(data.map(r => r.agent).filter(Boolean))].sort();
   }, [data]);
 
-  // الداتا بعد الفلتر
   const filteredData = useMemo(() => {
     return data.filter(r => {
       const d = r.exportDate;
@@ -65,13 +58,9 @@ export default function AgentDashboard() {
     });
   }, [data, dateFrom, dateTo, selectedAgent]);
 
-  // ====================================================
-  // 📥 جيب الداتا من Google Sheets تلقائياً
-  // ====================================================
   const parseDate = (val) => {
     if (!val) return "";
     const s = String(val).trim();
-    // فورمات ISO من Google Sheets: 2026-01-31T22:00:00.000Z
     if (s.includes("T")) {
       const d = new Date(new Date(s).getTime() + 2 * 60 * 60 * 1000);
       const y = d.getUTCFullYear();
@@ -79,19 +68,16 @@ export default function AgentDashboard() {
       const day = String(d.getUTCDate()).padStart(2, "0");
       return `${y}-${m}-${day}`;
     }
-    // فورمات MM/DD/YYYY أو M/D/YYYY — شهر/يوم/سنة (الفورمات الأمريكي)
     const mdyMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (mdyMatch) {
       const [_, month, day, year] = mdyMatch;
       return `${year}-${month.padStart(2,"0")}-${day.padStart(2,"0")}`;
     }
-    // فورمات YYYY/MM/DD
     const ymdMatch = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
     if (ymdMatch) {
       const [_, year, month, day] = ymdMatch;
       return `${year}-${month.padStart(2,"0")}-${day.padStart(2,"0")}`;
     }
-    // فورمات YYYY-MM-DD
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
     return s;
   };
@@ -102,18 +88,13 @@ export default function AgentDashboard() {
     try {
       const res = await fetch(SHEET_URL);
       const json = await res.json();
-
-      // بيجيب الورقتين مع بعض
       const rows1 = json.sheet1 || json;
       const rows2 = json.sheet2 || [];
-
       if (!rows1 || rows1.length === 0) {
         setSheetMsg({type:"error", text:"الشيت فاضي أو مفيش بيانات!"});
         setLoadingSheet(false);
         return;
       }
-
-      // ورقة 1 — الداتا الأساسية
       let idCounter = 1;
       const parsed = rows1.map(row => ({
         id: idCounter++,
@@ -124,15 +105,12 @@ export default function AgentDashboard() {
       })).filter(r => r.orderCode || r.agent);
       setData(parsed);
       setNextId(parsed.length + 1);
-
-      // ورقة 2 — الأوردرات المشحونة
       const shipped = rows2.map(row => ({
         orderCode: String(row["Order Code"] || "").trim(),
         agent: String(row["Agent Name"] || "").trim(),
         finalFeedback: String(row["Final feedback"] || row["Final Feedback"] || "").trim(),
       })).filter(r => r.orderCode);
       setShippedData(shipped);
-
       setSheetMsg({type:"success", text:`✓ تم تحميل ${parsed.length} سجل من الشيت!`});
       setTimeout(() => setSheetMsg(null), 4000);
     } catch(err) {
@@ -143,58 +121,35 @@ export default function AgentDashboard() {
 
   useEffect(() => { fetchFromSheet(); }, []);
 
-  // الأسباب اللي بتتشال من حساب الـ Reachability (البسط)
   const EXCLUDED_REASONS = [
-    "Already Signed",
-    "Already Out By User",
-    "Not reached removed from bundle",
-    "Not reached (with payment)",
-    "Suspicious fraud",
-    "Not reached removed (paid deposit)",
-    "Positive AML",
-    "Contract order was created by mistake",
-    "2nd return",
-    "Waiting for approval by Hub",
+    "Already Signed","Already Out By User","Not reached removed from bundle",
+    "Not reached (with payment)","Suspicious fraud","Not reached removed (paid deposit)",
+    "Positive AML","Contract order was created by mistake","2nd return","Waiting for approval by Hub",
   ];
+  const EXCLUDED_FROM_TOTAL = ["2nd return","Already Signed","Suspicious fraud"];
+  const COURIER_REASONS = ["Need courier","Re-delivery without shipping fees"];
+  const DELIVERED_REASONS = ["Delivered","Delivered & Received","Archived"];
 
-  // الأسباب اللي بتتشال من إجمالي الأوردرات (المقام)
-  const EXCLUDED_FROM_TOTAL = [
-    "2nd return",
-    "Already Signed",
-    "Suspicious fraud",
-  ];
-
-  // الأسباب اللي بتحسب في مقام Delivery Rate
-  const COURIER_REASONS = ["Need courier", "Re-delivery without shipping fees"];
-  // الأسباب اللي بتحسب في البسط (وصل فعلاً)
-  const DELIVERED_REASONS = ["Delivered", "Delivered & Received", "Archived"];
-
-  // ====================================================
-  // 📊 حسابات الإحصائيات
-  // ====================================================
   const agentStats = useMemo(() => {
     const map = {};
     filteredData.forEach(r => {
-      if (!map[r.agent]) map[r.agent] = {name:r.agent, total:0, feedbacks:{}, reachable:0, effectiveTotal:0, courierTotal:0};
+      if (!map[r.agent]) map[r.agent] = {name:r.agent,total:0,feedbacks:{},reachable:0,effectiveTotal:0,courierTotal:0};
       map[r.agent].total++;
       map[r.agent].feedbacks[r.feedback] = (map[r.agent].feedbacks[r.feedback]||0)+1;
       if (!EXCLUDED_FROM_TOTAL.includes(r.feedback)) map[r.agent].effectiveTotal++;
       if (!EXCLUDED_REASONS.includes(r.feedback)) map[r.agent].reachable++;
       if (COURIER_REASONS.includes(r.feedback)) map[r.agent].courierTotal++;
     });
-
-    // حساب Delivery Rate من ورقة 2
     const shippedMap = {};
     shippedData.forEach(r => {
       if (!shippedMap[r.agent]) shippedMap[r.agent] = 0;
       if (DELIVERED_REASONS.includes(r.finalFeedback)) shippedMap[r.agent]++;
     });
-
     return Object.values(map).sort((a,b)=>b.total-a.total).map(a => ({
       ...a,
-      reachability: a.effectiveTotal > 0 ? ((a.reachable / a.effectiveTotal) * 100).toFixed(1) : "0.0",
+      reachability: a.effectiveTotal > 0 ? ((a.reachable/a.effectiveTotal)*100).toFixed(1) : "0.0",
       deliveredCount: shippedMap[a.name] || 0,
-      deliveryRate: a.courierTotal > 0 ? (((shippedMap[a.name] || 0) / a.courierTotal) * 100).toFixed(1) : "0.0"
+      deliveryRate: a.courierTotal > 0 ? (((shippedMap[a.name]||0)/a.courierTotal)*100).toFixed(1) : "0.0",
     }));
   }, [filteredData, shippedData]);
 
@@ -207,7 +162,7 @@ export default function AgentDashboard() {
   const timelineData = useMemo(() => {
     const map = {};
     filteredData.forEach(r => { if (r.exportDate) map[r.exportDate]=(map[r.exportDate]||0)+1; });
-    return Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0])).map(([date,count])=>({label:date.slice(5), count}));
+    return Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0])).map(([date,count])=>({label:date.slice(5),count}));
   }, [filteredData]);
 
   const handleAdd = () => {
@@ -227,7 +182,7 @@ export default function AgentDashboard() {
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
-        const wb = XLSX.read(evt.target.result, {type:isCSV?"string":"binary", cellDates:true});
+        const wb = XLSX.read(evt.target.result, {type:isCSV?"string":"binary",cellDates:true});
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(ws, {defval:""});
         if (rows.length===0) { setUploadMsg({type:"error",text:"الملف فاضي!"}); return; }
@@ -236,12 +191,12 @@ export default function AgentDashboard() {
           let dateVal = row["Export date"]||row["Export Date"]||"";
           if (dateVal instanceof Date) dateVal = dateVal.toISOString().slice(0,10);
           else if (typeof dateVal==="number") { const d=XLSX.SSF.parse_date_code(dateVal); dateVal=`${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`; }
-          else dateVal = String(dateVal).trim();
-          return {id:idCounter++, exportDate:dateVal, orderCode:String(row["Order Code"]||"").trim(), agent:String(row["Agent Name"]||"").trim(), feedback:String(row["Final feedback"]||"").trim()};
+          else dateVal = parseDate(String(dateVal).trim());
+          return {id:idCounter++,exportDate:dateVal,orderCode:String(row["Order Code"]||"").trim(),agent:String(row["Agent Name"]||"").trim(),feedback:String(row["Final feedback"]||"").trim()};
         }).filter(r=>r.orderCode||r.agent);
         setNextId(idCounter);
         setData(prev=>[...prev,...parsed]);
-        setUploadMsg({type:"success", text:`✓ تم رفع ${parsed.length} سجل!`});
+        setUploadMsg({type:"success",text:`✓ تم رفع ${parsed.length} سجل!`});
         setTimeout(()=>setUploadMsg(null),4000);
       } catch(err) { setUploadMsg({type:"error",text:"خطأ في قراءة الملف."}); }
     };
@@ -284,8 +239,6 @@ export default function AgentDashboard() {
         .agent-bar-wrap{flex:2;background:#f0f0f0;height:6px;border-radius:1px;overflow:hidden;}
         .agent-bar{height:100%;border-radius:1px;}
         .agent-count{font-size:13px;color:#0077aa;min-width:52px;text-align:right;}
-        .fb-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;background:#f9f9f9;border:1px solid #e8e8e8;border-radius:2px;margin:4px;font-size:11px;color:#555;}
-        .fb-count{color:#0077aa;font-weight:500;}
         .form-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(6px);}
         .form-box{background:#fff;border:1px solid #ddd;padding:40px;width:480px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,0.12);}
         .form-title{font-family:'Syne',sans-serif;font-size:24px;color:#111;margin-bottom:28px;}
@@ -304,10 +257,6 @@ export default function AgentDashboard() {
         .table th{font-size:10px;color:#aaa;letter-spacing:2px;text-transform:uppercase;padding:10px 14px;border-bottom:1px solid #eee;text-align:left;}
         .table td{font-size:12px;color:#555;padding:12px 14px;border-bottom:1px solid #f5f5f5;}
         .table tr:hover td{background:#f9f9f9;color:#111;}
-        .toggle-wrap{display:flex;gap:2px;margin-bottom:20px;}
-        .toggle-btn{padding:7px 16px;font-size:10px;letter-spacing:2px;text-transform:uppercase;font-family:'DM Mono',monospace;border:1px solid #e0e0e0;cursor:pointer;transition:all 0.2s;border-radius:1px;}
-        .toggle-btn.on{background:#5a9e2f;color:#fff;border-color:#5a9e2f;}
-        .toggle-btn.off{background:#fff;color:#aaa;}
         .add-btn-wrap{display:flex;justify-content:flex-end;margin-bottom:20px;}
         .empty{text-align:center;padding:48px;color:#bbb;font-size:13px;letter-spacing:1px;}
         .loading{text-align:center;padding:80px;color:#aaa;font-size:13px;letter-spacing:2px;}
@@ -342,7 +291,6 @@ export default function AgentDashboard() {
           ))}
         </div>
 
-        {/* Filter Bar */}
         {activeTab !== "data" && (
           <div style={{
             background:"#fff",border:"1px solid #e0e0e0",borderRadius:2,
@@ -350,7 +298,6 @@ export default function AgentDashboard() {
             display:"flex",alignItems:"center",gap:16,flexWrap:"wrap",
             boxShadow:"0 1px 4px rgba(0,0,0,0.05)"
           }}>
-            {/* فلتر التاريخ */}
             <div style={{fontSize:10,color:"#aaa",letterSpacing:2,textTransform:"uppercase",fontFamily:"'DM Mono',monospace"}}>📅 التاريخ</div>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <label style={{fontSize:11,color:"#888",fontFamily:"'DM Mono',monospace"}}>من</label>
@@ -364,11 +311,7 @@ export default function AgentDashboard() {
                 style={{background:"#f9f9f9",border:"1px solid #ddd",color:"#111",padding:"7px 12px",
                   fontFamily:"'DM Mono',monospace",fontSize:12,outline:"none",borderRadius:1,cursor:"pointer"}}/>
             </div>
-
-            {/* فاصل */}
             <div style={{width:1,height:28,background:"#e0e0e0"}}/>
-
-            {/* فلتر الأجنت */}
             <div style={{fontSize:10,color:"#aaa",letterSpacing:2,textTransform:"uppercase",fontFamily:"'DM Mono',monospace"}}>👤 الأجنت</div>
             <select value={selectedAgent} onChange={e=>setSelectedAgent(e.target.value)}
               style={{background:"#f9f9f9",border:"1px solid #ddd",color:selectedAgent?"#111":"#aaa",
@@ -377,8 +320,6 @@ export default function AgentDashboard() {
               <option value="">الكل</option>
               {agentList.map(a=><option key={a} value={a}>{a}</option>)}
             </select>
-
-            {/* زرار إلغاء كل الفلاتر */}
             {(dateFrom || dateTo || selectedAgent) && (
               <button onClick={()=>{setDateFrom("");setDateTo("");setSelectedAgent("");}}
                 style={{background:"transparent",color:"#c62828",fontFamily:"'DM Mono',monospace",
@@ -386,8 +327,6 @@ export default function AgentDashboard() {
                 ✕ إلغاء الكل
               </button>
             )}
-
-            {/* عداد السجلات */}
             <div style={{marginLeft:"auto",fontSize:11,letterSpacing:1,fontFamily:"'DM Mono',monospace",
               color:(dateFrom||dateTo||selectedAgent)?"#0077aa":"#bbb"}}>
               {(dateFrom||dateTo||selectedAgent)
@@ -407,7 +346,7 @@ export default function AgentDashboard() {
             <motion.div key="overview" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} exit={{opacity:0}} transition={{duration:0.3}}>
               <div className="grid3" style={{marginBottom:"2px"}}>
                 {[
-                  {label:"Total Orders",val:data.length,color:"#0077aa"},
+                  {label:"Total Orders",val:filteredData.length,color:"#0077aa"},
                   {label:"Total Agents",val:agentStats.length,color:"#2e7d32"},
                   {label:"Feedback Types",val:feedbackStats.length,color:"#e06000"},
                 ].map((s,i)=>(
@@ -417,10 +356,8 @@ export default function AgentDashboard() {
                   </motion.div>
                 ))}
               </div>
-              <div className="card" style={{marginBottom:"2px"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-                  <div className="card-title" style={{margin:0}}>Orders Timeline</div>
-                </div>
+              <div className="card">
+                <div className="card-title">Orders Timeline</div>
                 <ResponsiveContainer width="100%" height={240}>
                   <LineChart data={timelineData}>
                     <CartesianGrid stroke="#f0f0f0" vertical={false}/>
@@ -430,25 +367,26 @@ export default function AgentDashboard() {
                     <Line type="monotone" dataKey="count" stroke="#0077aa" strokeWidth={2} dot={{fill:"#0077aa",r:4}} name="Orders"/>
                   </LineChart>
                 </ResponsiveContainer>
+              </div>
             </motion.div>
           )}
 
           {activeTab==="agents" && (
             <motion.div key="agents" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} exit={{opacity:0}} transition={{duration:0.3}}>
               <div className="card" style={{marginBottom:"2px"}}>
-                  <div className="card-title">Orders by Agent</div>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={agentStats} barCategoryGap="35%">
-                      <XAxis dataKey="name" tick={{fill:"#aaa",fontSize:10,fontFamily:"DM Mono"}} axisLine={false} tickLine={false}/>
-                      <YAxis tick={{fill:"#bbb",fontSize:10,fontFamily:"DM Mono"}} axisLine={false} tickLine={false}/>
-                      <Tooltip content={<CustomTooltip/>} cursor={{fill:"#00000004"}}/>
-                      <Bar dataKey="total" radius={[2,2,0,0]} name="Orders">
-                        {agentStats.map((_,i)=><Cell key={i} fill={COLORS[i%COLORS.length]}/>)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              <div className="card" style={{marginTop:"2px"}}>
+                <div className="card-title">Orders by Agent</div>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={agentStats} barCategoryGap="35%">
+                    <XAxis dataKey="name" tick={{fill:"#aaa",fontSize:10,fontFamily:"DM Mono"}} axisLine={false} tickLine={false}/>
+                    <YAxis tick={{fill:"#bbb",fontSize:10,fontFamily:"DM Mono"}} axisLine={false} tickLine={false}/>
+                    <Tooltip content={<CustomTooltip/>} cursor={{fill:"#00000004"}}/>
+                    <Bar dataKey="total" radius={[2,2,0,0]} name="Orders">
+                      {agentStats.map((_,i)=><Cell key={i} fill={COLORS[i%COLORS.length]}/>)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="card" style={{marginBottom:"2px"}}>
                 <div className="card-title">📊 Reachability — ملخص</div>
                 <div style={{display:"flex",flexWrap:"wrap",gap:2}}>
                   {agentStats.map((a,i)=>{
@@ -465,7 +403,7 @@ export default function AgentDashboard() {
                   })}
                 </div>
               </div>
-              <div className="card" style={{marginTop:"2px"}}>
+              <div className="card">
                 <div className="card-title">🚚 Delivery Rate — ملخص</div>
                 <div style={{display:"flex",flexWrap:"wrap",gap:2}}>
                   {agentStats.map((a,i)=>{
@@ -487,7 +425,7 @@ export default function AgentDashboard() {
 
           {activeTab==="feedback" && (
             <motion.div key="feedback" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} exit={{opacity:0}} transition={{duration:0.3}}>
-              <div className="grid2">
+              <div className="grid2" style={{marginBottom:"2px"}}>
                 <div className="card">
                   <div className="card-title">Feedback Distribution</div>
                   <ResponsiveContainer width="100%" height={320}>
@@ -511,14 +449,14 @@ export default function AgentDashboard() {
                           transition={{delay:i*0.07,duration:0.8,ease:"easeOut"}}/>
                       </div>
                       <div className="agent-count" style={{minWidth:52}}>
-                        {data.length>0?((f.value/data.length)*100).toFixed(1)+"%":"0%"}
+                        {filteredData.length>0?((f.value/filteredData.length)*100).toFixed(1)+"%":"0%"}
                         <span style={{display:"block",fontSize:9,color:"#888",marginTop:1}}>{f.value} records</span>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-              <div className="card" style={{marginTop:"2px"}}>
+              <div className="card">
                 <div className="card-title">Feedback by Agent (Stacked)</div>
                 <ResponsiveContainer width="100%" height={260}>
                   <BarChart data={agentStats} barCategoryGap="30%">
@@ -562,17 +500,17 @@ export default function AgentDashboard() {
                     <div className="card" style={{borderTop:"2px solid #0077aa"}}>
                       <div className="card-title">Re-delivery — الإجمالي</div>
                       <div className="stat-val" style={{color:"#0077aa",fontSize:36}}>{totalA}</div>
-                      <div className="stat-sub">{data.length>0?((totalA/data.length)*100).toFixed(1):0}% من الكل</div>
+                      <div className="stat-sub">{filteredData.length>0?((totalA/filteredData.length)*100).toFixed(1):0}% من الكل</div>
                     </div>
                     <div className="card" style={{borderTop:"2px solid #e06000"}}>
                       <div className="card-title">Need Courier — الإجمالي</div>
                       <div className="stat-val" style={{color:"#e06000",fontSize:36}}>{totalB}</div>
-                      <div className="stat-sub">{data.length>0?((totalB/data.length)*100).toFixed(1):0}% من الكل</div>
+                      <div className="stat-sub">{filteredData.length>0?((totalB/filteredData.length)*100).toFixed(1):0}% من الكل</div>
                     </div>
                     <div className="card" style={{borderTop:"2px solid #2e7d32"}}>
                       <div className="card-title">المجموع مع بعض</div>
                       <div className="stat-val" style={{color:"#2e7d32",fontSize:36}}>{totalCombined}</div>
-                      <div className="stat-sub">{data.length>0?((totalCombined/data.length)*100).toFixed(1):0}% من الكل</div>
+                      <div className="stat-sub">{filteredData.length>0?((totalCombined/filteredData.length)*100).toFixed(1):0}% من الكل</div>
                     </div>
                   </div>
                   <div className="grid2" style={{marginBottom:"2px"}}>
@@ -587,7 +525,7 @@ export default function AgentDashboard() {
                       <div className="stat-sub" style={{marginTop:8}}>{worst?.combined} سجل — {worst?.total>0?((worst.combined/worst.total)*100).toFixed(1):0}% من أوردراته</div>
                     </div>
                   </div>
-                  <div className="card" style={{marginBottom:"2px"}}>
+                  <div className="card">
                     <div className="card-title">تفاصيل كل أجنت</div>
                     <div style={{overflowX:"auto"}}>
                       <table className="table">
