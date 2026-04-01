@@ -40,8 +40,6 @@ export default function AgentDashboard() {
   const [nextId, setNextId] = useState(1);
   const [uploadMsg, setUploadMsg] = useState(null);
   const fileInputRef = useRef(null);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
   const [selectedAgent, setSelectedAgent] = useState("");
 
   const agentList = useMemo(() => {
@@ -50,13 +48,10 @@ export default function AgentDashboard() {
 
   const filteredData = useMemo(() => {
     return data.filter(r => {
-      const d = r.exportDate;
-      if (dateFrom && d < dateFrom) return false;
-      if (dateTo && d > dateTo) return false;
       if (selectedAgent && r.agent !== selectedAgent) return false;
       return true;
     });
-  }, [data, dateFrom, dateTo, selectedAgent]);
+  }, [data, selectedAgent]);
 
   const parseDate = (val) => {
     if (!val) return "";
@@ -298,20 +293,6 @@ export default function AgentDashboard() {
             display:"flex",alignItems:"center",gap:16,flexWrap:"wrap",
             boxShadow:"0 1px 4px rgba(0,0,0,0.05)"
           }}>
-            <div style={{fontSize:10,color:"#aaa",letterSpacing:2,textTransform:"uppercase",fontFamily:"'DM Mono',monospace"}}>📅 التاريخ</div>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <label style={{fontSize:11,color:"#888",fontFamily:"'DM Mono',monospace"}}>من</label>
-              <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}
-                style={{background:"#f9f9f9",border:"1px solid #ddd",color:"#111",padding:"7px 12px",
-                  fontFamily:"'DM Mono',monospace",fontSize:12,outline:"none",borderRadius:1,cursor:"pointer"}}/>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <label style={{fontSize:11,color:"#888",fontFamily:"'DM Mono',monospace"}}>إلى</label>
-              <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}
-                style={{background:"#f9f9f9",border:"1px solid #ddd",color:"#111",padding:"7px 12px",
-                  fontFamily:"'DM Mono',monospace",fontSize:12,outline:"none",borderRadius:1,cursor:"pointer"}}/>
-            </div>
-            <div style={{width:1,height:28,background:"#e0e0e0"}}/>
             <div style={{fontSize:10,color:"#aaa",letterSpacing:2,textTransform:"uppercase",fontFamily:"'DM Mono',monospace"}}>👤 الأجنت</div>
             <select value={selectedAgent} onChange={e=>setSelectedAgent(e.target.value)}
               style={{background:"#f9f9f9",border:"1px solid #ddd",color:selectedAgent?"#111":"#aaa",
@@ -320,16 +301,15 @@ export default function AgentDashboard() {
               <option value="">الكل</option>
               {agentList.map(a=><option key={a} value={a}>{a}</option>)}
             </select>
-            {(dateFrom || dateTo || selectedAgent) && (
-              <button onClick={()=>{setDateFrom("");setDateTo("");setSelectedAgent("");}}
+            {selectedAgent && (
+              <button onClick={()=>setSelectedAgent("")}
                 style={{background:"transparent",color:"#c62828",fontFamily:"'DM Mono',monospace",
                   fontSize:11,letterSpacing:1,padding:"6px 12px",border:"1px solid #c6282833",cursor:"pointer",borderRadius:1}}>
-                ✕ إلغاء الكل
+                ✕ إلغاء
               </button>
             )}
-            <div style={{marginLeft:"auto",fontSize:11,letterSpacing:1,fontFamily:"'DM Mono',monospace",
-              color:(dateFrom||dateTo||selectedAgent)?"#0077aa":"#bbb"}}>
-              {(dateFrom||dateTo||selectedAgent)
+            <div style={{marginLeft:"auto",fontSize:11,letterSpacing:1,fontFamily:"'DM Mono',monospace",color:selectedAgent?"#0077aa":"#bbb"}}>
+              {selectedAgent
                 ? <span><b style={{color:"#0077aa"}}>{filteredData.length}</b> سجل من أصل {data.length}</span>
                 : <span>{data.length} سجل إجمالي</span>
               }
@@ -355,18 +335,6 @@ export default function AgentDashboard() {
                     <div className="stat-val" style={{color:s.color}}>{s.val}</div>
                   </motion.div>
                 ))}
-              </div>
-              <div className="card">
-                <div className="card-title">Orders Timeline</div>
-                <ResponsiveContainer width="100%" height={240}>
-                  <LineChart data={timelineData}>
-                    <CartesianGrid stroke="#f0f0f0" vertical={false}/>
-                    <XAxis dataKey="label" tick={{fill:"#bbb",fontSize:10,fontFamily:"DM Mono"}} axisLine={false} tickLine={false}/>
-                    <YAxis tick={{fill:"#bbb",fontSize:10,fontFamily:"DM Mono"}} axisLine={false} tickLine={false}/>
-                    <Tooltip content={<CustomTooltip/>}/>
-                    <Line type="monotone" dataKey="count" stroke="#0077aa" strokeWidth={2} dot={{fill:"#0077aa",r:4}} name="Orders"/>
-                  </LineChart>
-                </ResponsiveContainer>
               </div>
             </motion.div>
           )}
